@@ -1,8 +1,80 @@
+provider "aws" {
+  region = "us-west-2"
+}
+
+# Define the VPC
+resource "aws_vpc" "ot_microservices_dev" {
+  cidr_block = "10.0.0.0/16"
+  enable_dns_support = true
+  enable_dns_hostnames = true
+  tags = {
+    Name = "ot-microservices-dev"
+  }
+}
+
+# Define the Security Groups
+resource "aws_security_group" "alb_security_group" {
+  vpc_id = aws_vpc.ot_microservices_dev.id
+  name = "alb-security-group"
+  tags = {
+    Name = "alb-security-group"
+  }
+}
+
+resource "aws_security_group" "bastion_security_group" {
+  vpc_id = aws_vpc.ot_microservices_dev.id
+  name = "bastion-security-group"
+  tags = {
+    Name = "bastion-security-group"
+  }
+}
+
+# Define the Subnet
+resource "aws_subnet" "application_subnet" {
+  vpc_id = aws_vpc.ot_microservices_dev.id
+  cidr_block = "10.0.1.0/24"
+  availability_zone = "us-west-2a"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "application-subnet"
+  }
+}
+
+# Define the Load Balancer
+resource "aws_lb" "front_end" {
+  name               = "front-end-lb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_security_group.id]
+  subnets            = [aws_subnet.application_subnet.id]
+  enable_deletion_protection = false
+  enable_http2      = true
+  idle_timeout      = 60
+
+  tags = {
+    Name = "front-end-lb"
+  }
+}
+
+# Define the Load Balancer Listener
+resource "aws_lb_listener" "front_end" {
+  load_balancer_arn = aws_lb.front_end.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "404 Not Found"
+      status_code  = "404"
+    }
+  }
+}
+
 # SALARY
 
-
-#Salary-Security Group
-
+# Salary-Security Group
 resource "aws_security_group" "salary_security_group" {
   vpc_id = aws_vpc.ot_microservices_dev.id
   name = "salary-security-group"
@@ -10,7 +82,7 @@ resource "aws_security_group" "salary_security_group" {
   tags = {
     Name = "salary-security-group"
   }
-  
+
   ingress {
     from_port        = 8080
     to_port          = 8080
@@ -30,15 +102,12 @@ resource "aws_security_group" "salary_security_group" {
     to_port          = 0
     protocol         = "-1"
     cidr_blocks      = ["0.0.0.0/0"]
-    # ipv6_cidr_blocks = ["::/0"]
   }
 }
 
-# instance
-
+# Instance
 resource "aws_instance" "salary_instance" {
-  # ami to be replaced with actual bastion ami
-  ami           = "ami-0ea8cf939c4f34d5d"
+  ami           = "ami-0075013580f6322a1"
   subnet_id = aws_subnet.application_subnet.id
   vpc_security_group_ids = [aws_security_group.salary_security_group.id]
   instance_type = "t2.micro"
@@ -49,8 +118,7 @@ resource "aws_instance" "salary_instance" {
   }
 }
 
-# target group and attachment
-
+# Target Group and Attachment
 resource "aws_lb_target_group" "salary_target_group" {
   name     = "salary-tg"
   port     = 80
@@ -65,8 +133,7 @@ resource "aws_lb_target_group_attachment" "salary_target_group_attachment" {
   port             = 8080
 }
 
-# listener rule
-
+# Listener Rule
 resource "aws_lb_listener_rule" "salary_rule" {
   listener_arn = aws_lb_listener.front_end.arn
   priority     = 5
@@ -83,15 +150,12 @@ resource "aws_lb_listener_rule" "salary_rule" {
   }
 }
 
-
-# launch template for Salary
-
+# Launch Template for Salary
 resource "aws_launch_template" "salary_launch_template" {
   name = "salary-template"
 
   block_device_mappings {
     device_name = "/dev/sdf"
-
     ebs {
       volume_size = 10
       volume_type = "gp3"
@@ -105,22 +169,18 @@ resource "aws_launch_template" "salary_launch_template" {
   }
 
   key_name      = "backend"
-  # ami to be replaced with actual ami currently not right
-  image_id      = "ami-0ea8cf939c4f34d5d"
+  image_id      = "ami-0075013580f6322a1"
   instance_type = "t2.micro"
 
   tag_specifications {
     resource_type = "instance"
-
     tags = {
       Name = "SalaryASG"
     }
   }
 }
 
-
-# auto scaling for Salary
-
+# Auto Scaling for Salary
 resource "aws_autoscaling_group" "salary_autoscaling" {
   name                      = "salary-autoscale"
   max_size                  = 2
