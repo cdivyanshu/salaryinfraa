@@ -12,21 +12,37 @@ resource "aws_vpc" "ot_microservices_dev" {
   }
 }
 
-# Define the Security Groups
-resource "aws_security_group" "alb_security_group" {
+# Define the Internet Gateway
+resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.ot_microservices_dev.id
-  name = "alb-security-group"
   tags = {
-    Name = "alb-security-group"
+    Name = "my-igw"
   }
 }
 
-resource "aws_security_group" "bastion_security_group" {
+# Define the Route Table
+resource "aws_route_table" "public" {
   vpc_id = aws_vpc.ot_microservices_dev.id
-  name = "bastion-security-group"
-  tags = {
-    Name = "bastion-security-group"
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
   }
+
+  tags = {
+    Name = "public-route-table"
+  }
+}
+
+# Define the Route Table Association for Subnets
+resource "aws_route_table_association" "subnet_1" {
+  subnet_id      = aws_subnet.application_subnet_1.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "subnet_2" {
+  subnet_id      = aws_subnet.application_subnet_2.id
+  route_table_id = aws_route_table.public.id
 }
 
 # Define Subnets in different Availability Zones
