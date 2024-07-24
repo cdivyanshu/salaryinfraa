@@ -12,6 +12,39 @@ resource "aws_vpc" "ot_microservices_dev" {
   }
 }
 
+# Define the Internet Gateway
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.ot_microservices_dev.id
+  tags = {
+    Name = "my-igw"
+  }
+}
+
+# Define the Route Table
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.ot_microservices_dev.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+
+  tags = {
+    Name = "public-route-table"
+  }
+}
+
+# Define Route Table Associations for Public Subnets
+resource "aws_route_table_association" "subnet_1" {
+  subnet_id      = aws_subnet.application_subnet_1.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "subnet_2" {
+  subnet_id      = aws_subnet.application_subnet_2.id
+  route_table_id = aws_route_table.public.id
+}
+
 # Define the Security Groups
 resource "aws_security_group" "alb_security_group" {
   vpc_id = aws_vpc.ot_microservices_dev.id
@@ -85,9 +118,7 @@ resource "aws_lb_listener" "front_end" {
   }
 }
 
-# SALARY
-
-# Salary-Security Group
+# Salary Security Group
 resource "aws_security_group" "salary_security_group" {
   vpc_id = aws_vpc.ot_microservices_dev.id
   name = "salary-security-group"
