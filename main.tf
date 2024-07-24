@@ -29,14 +29,24 @@ resource "aws_security_group" "bastion_security_group" {
   }
 }
 
-# Define the Subnet
-resource "aws_subnet" "application_subnet" {
+# Define Subnets in different Availability Zones
+resource "aws_subnet" "application_subnet_1" {
   vpc_id = aws_vpc.ot_microservices_dev.id
   cidr_block = "10.0.1.0/24"
   availability_zone = "us-west-2a"
   map_public_ip_on_launch = true
   tags = {
-    Name = "application-subnet"
+    Name = "application-subnet-1"
+  }
+}
+
+resource "aws_subnet" "application_subnet_2" {
+  vpc_id = aws_vpc.ot_microservices_dev.id
+  cidr_block = "10.0.2.0/24"
+  availability_zone = "us-west-2b"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "application-subnet-2"
   }
 }
 
@@ -46,7 +56,10 @@ resource "aws_lb" "front_end" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_security_group.id]
-  subnets            = [aws_subnet.application_subnet.id]
+  subnets            = [
+    aws_subnet.application_subnet_1.id,
+    aws_subnet.application_subnet_2.id
+  ]
   enable_deletion_protection = false
   enable_http2      = true
   idle_timeout      = 60
@@ -108,7 +121,7 @@ resource "aws_security_group" "salary_security_group" {
 # Instance
 resource "aws_instance" "salary_instance" {
   ami           = "ami-0075013580f6322a1"
-  subnet_id = aws_subnet.application_subnet.id
+  subnet_id = aws_subnet.application_subnet_1.id
   vpc_security_group_ids = [aws_security_group.salary_security_group.id]
   instance_type = "t2.micro"
   key_name = "backend"
@@ -163,7 +176,7 @@ resource "aws_launch_template" "salary_launch_template" {
   }
 
   network_interfaces {
-    subnet_id                   = aws_subnet.application_subnet.id
+    subnet_id                   = aws_subnet.application_subnet_1.id
     associate_public_ip_address = false
     security_groups             = [aws_security_group.salary_security_group.id]
   }
@@ -191,7 +204,7 @@ resource "aws_autoscaling_group" "salary_autoscaling" {
     id      = aws_launch_template.salary_launch_template.id
     version = "$Default"
   }
-  vpc_zone_identifier = [aws_subnet.application_subnet.id]
+  vpc_zone_identifier = [aws_subnet.application_subnet_1.id, aws_subnet.application_subnet_2.id]
   target_group_arns = [aws_lb_target_group.salary_target_group.arn]
 }
 
